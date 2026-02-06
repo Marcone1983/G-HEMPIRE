@@ -1131,7 +1131,7 @@ const Navigation = ({ currentPage, onNavigate }) => {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 glass-nav h-20 flex justify-around items-center z-50 safe-area-bottom max-w-md mx-auto">
+    <nav className="fixed bottom-0 left-0 right-0 glass-nav h-24 flex justify-around items-start pt-2 z-50 pb-8 max-w-md mx-auto">
       {navItems.map((item) => (
         <button
           key={item.id}
