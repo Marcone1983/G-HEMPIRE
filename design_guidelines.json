@@ -1,0 +1,154 @@
+{
+  "project_name": "Cannabis Empire",
+  "design_philosophy": {
+    "identity": "Cyber-Botany",
+    "core_concept": "High-tech underground cannabis cultivation on the blockchain.",
+    "emotional_tone": "Addictive, Premium, Stealth, Growth",
+    "visual_style": "Dark Mode Neon, Glassmorphism, Industrial Sci-Fi",
+    "principles": [
+      "No Stoner Clichés: Avoid rasta colors or messy grunge. Think 'High-Tech Lab' not 'Basement'.",
+      "Neon is Function: Use glow to signal interactivity and rarity.",
+      "Depth over Flatness: Use layered glass and shadows to create a 3D feel on 2D screens.",
+      "Gold for Glory: VIP and High-value items must feel physically heavy and golden."
+    ]
+  },
+  "typography": {
+    "font_family": {
+      "headings": "Chakra Petch, sans-serif",
+      "body": "Outfit, sans-serif",
+      "mono": "JetBrains Mono, monospace"
+    },
+    "installation_url": "https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Outfit:wght@300;400;500;700&family=JetBrains+Mono:wght@400&display=swap",
+    "scale": {
+      "h1": "text-4xl md:text-5xl font-bold tracking-tight uppercase",
+      "h2": "text-2xl md:text-3xl font-bold tracking-tight",
+      "h3": "text-xl font-semibold tracking-normal text-neon-green",
+      "body": "text-base font-normal leading-relaxed text-gray-300",
+      "caption": "text-xs font-medium tracking-wider text-gray-500 uppercase"
+    }
+  },
+  "colors": {
+    "theme": "dark",
+    "palette": {
+      "background": {
+        "default": "#050505",
+        "surface": "#121212",
+        "overlay": "rgba(18, 18, 18, 0.8)"
+      },
+      "primary": {
+        "main": "#39FF14",
+        "glow": "0 0 10px #39FF14, 0 0 20px #39FF14",
+        "dim": "#1B4D10"
+      },
+      "secondary": {
+        "main": "#9D4EDD",
+        "glow": "0 0 10px #9D4EDD",
+        "dim": "#3C1D55"
+      },
+      "accent": {
+        "gold": "#FFD700",
+        "gold_glow": "0 0 10px #FFD700",
+        "danger": "#FF0033"
+      },
+      "text": {
+        "primary": "#FFFFFF",
+        "secondary": "#A1A1AA",
+        "muted": "#52525B"
+      },
+      "border": {
+        "default": "rgba(255, 255, 255, 0.1)",
+        "active": "rgba(57, 255, 20, 0.5)"
+      }
+    }
+  },
+  "visual_enhancers": {
+    "glassmorphism": {
+      "card": "bg-black/40 backdrop-blur-xl border border-white/10 shadow-xl",
+      "overlay": "bg-black/60 backdrop-blur-md",
+      "nav": "bg-black/80 backdrop-blur-2xl border-t border-white/5"
+    },
+    "shadows": {
+      "neon_green": "0 0 15px rgba(57, 255, 20, 0.3)",
+      "neon_purple": "0 0 15px rgba(157, 78, 221, 0.3)",
+      "depth": "0 10px 30px -10px rgba(0,0,0,0.8)"
+    },
+    "gradients": {
+      "surface": "linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%)",
+      "gold_text": "linear-gradient(to bottom, #FFD700, #FDB931)",
+      "void": "radial-gradient(circle at center, #1a1a1a 0%, #000000 100%)"
+    },
+    "borders": {
+      "radius": "rounded-xl",
+      "width": "border"
+    }
+  },
+  "layout_strategies": {
+    "container": "max-w-md mx-auto min-h-screen bg-black relative overflow-hidden",
+    "grid": {
+      "garden": "grid grid-cols-2 gap-4 p-4",
+      "shop": "grid grid-cols-2 gap-3 p-4",
+      "dashboard": "flex flex-col gap-4 p-4"
+    },
+    "spacing": {
+      "section_gap": "gap-6",
+      "inner_padding": "p-5"
+    }
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-primary text-black font-bold uppercase tracking-wider hover:shadow-[0_0_20px_rgba(57,255,20,0.6)] transition-all active:scale-95 clip-path-polygon-[10px_0,100%_0,100%_calc(100%-10px),calc(100%-10px)_100%,0_100%,0_10px]",
+      "secondary": "bg-white/5 text-white border border-white/10 hover:bg-white/10 hover:border-white/30 transition-all active:scale-95",
+      "action": "bg-gradient-to-r from-green-600 to-green-500 text-white font-bold shadow-lg hover:brightness-110"
+    },
+    "cards": {
+      "plot": "relative aspect-square bg-white/5 rounded-xl border border-white/10 hover:border-primary/50 transition-colors flex items-center justify-center overflow-hidden group",
+      "item": "flex flex-col gap-2 p-3 bg-white/5 rounded-lg border border-white/5 hover:bg-white/10 transition-colors"
+    },
+    "navigation": {
+      "bottom_bar": "fixed bottom-0 left-0 right-0 h-20 bg-black/90 backdrop-blur-xl border-t border-white/10 flex justify-around items-center z-50 pb-4 max-w-md mx-auto"
+    }
+  },
+  "assets": {
+    "images": {
+      "backgrounds": {
+        "neon_abstract": "https://images.unsplash.com/photo-1762019536572-770dff8aeddb",
+        "cyber_lines": "https://images.unsplash.com/photo-1764258560214-71d5f28852d0",
+        "lab_context": "https://images.pexels.com/photos/10187130/pexels-photo-10187130.jpeg"
+      },
+      "items": {
+        "gleaf_token": "https://images.unsplash.com/photo-1767131545090-e13ae86c8e13",
+        "premium_gem": "https://images.unsplash.com/photo-1767131543360-f80666ccb092",
+        "gold_coin": "https://images.unsplash.com/photo-1691404819847-dab7d769aca7"
+      }
+    },
+    "icons": {
+      "library": "lucide-react",
+      "preferred": ["Sprout", "Droplets", "Zap", "Trophy", "Wallet", "Settings", "Users", "ShoppingBag", "Pickaxe"]
+    }
+  },
+  "motion": {
+    "library": "framer-motion",
+    "animations": {
+      "page_transition": {
+        "initial": { "opacity": 0, "y": 20 },
+        "animate": { "opacity": 1, "y": 0 },
+        "exit": { "opacity": 0, "y": -20 }
+      },
+      "tap_feedback": {
+        "scale": [1, 0.9, 1]
+      },
+      "glow_pulse": {
+        "boxShadow": ["0 0 5px #39FF14", "0 0 20px #39FF14", "0 0 5px #39FF14"]
+      }
+    }
+  },
+  "universal_guidelines": [
+    "Always use 'data-testid' for interactive elements.",
+    "Do NOT use gradients for backgrounds, only for text or subtle overlays.",
+    "Ensure 44px min touch target for all mobile interactions.",
+    "Use 'sonner' for all notifications.",
+    "Implement 'framer-motion' for all state changes (entering/leaving).",
+    "Do not use default scrollbars; hide them or style them thin/dark.",
+    "All prices and balances must be formatted with thousand separators."
+  ]
+}
