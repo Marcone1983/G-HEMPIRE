@@ -1,8 +1,8 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, Header
+from fastapi import FastAPI, APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
+from supabase import create_client, Client
 import os
 import logging
 from pathlib import Path
@@ -10,22 +10,23 @@ from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timezone, timedelta
-import hashlib
 import secrets
 import httpx
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+# Supabase connection
+supabase_url = os.environ.get('SUPABASE_URL')
+supabase_key = os.environ.get('SUPABASE_ANON_KEY')
+supabase: Client = create_client(supabase_url, supabase_key)
 
 # Game Configuration
 REVENUE_WALLET = os.environ.get('REVENUE_WALLET', 'UQArbhbVEIkN4xSWis30yIrNGdmOTBbiMBduGeNTErPbviyR')
 GLEAF_CONTRACT = os.environ.get('GLEAF_CONTRACT', 'EQBynBO23ywHy_CgarY9NK9FTz0yDsG82PtcbSTQgGoXwiuA')
 STAKING_CONTRACT = os.environ.get('STAKING_CONTRACT', 'EQBstk4q4G6yk7qVKCN7O6dpFTR9znN1hEaGSAoN1sVRr5l_')
+TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
+TELEGRAM_BOT_USERNAME = os.environ.get('TELEGRAM_BOT_USERNAME')
 
 # Game Constants - EVO Seed Varieties
 CROPS = {
@@ -62,14 +63,6 @@ SHOP_ITEMS = {
     ]
 }
 
-GEMS_PACKAGES = [
-    {"id": "gems_starter", "name": "Starter Pack", "gems": 100, "stars": 50, "bonus": 0},
-    {"id": "gems_value", "name": "Value Pack", "gems": 550, "stars": 200, "bonus": 50},
-    {"id": "gems_pro", "name": "Pro Pack", "gems": 1200, "stars": 400, "bonus": 200},
-    {"id": "gems_mega", "name": "Mega Pack", "gems": 3000, "stars": 900, "bonus": 600},
-    {"id": "gems_empire", "name": "Empire Pack", "gems": 8000, "stars": 2000, "bonus": 2000},
-]
-
 VIP_TIERS = {
     "none": {"multiplier": 1.0, "referral_bonus": 0.05},
     "bronze": {"multiplier": 1.05, "referral_bonus": 0.08},
@@ -81,51 +74,9 @@ VIP_TIERS = {
 # Pydantic Models
 class PlayerCreate(BaseModel):
     wallet_address: str
-    telegram_id: Optional[str] = None
+    telegram_id: Optional[int] = None
     username: Optional[str] = None
     referrer_id: Optional[str] = None
-
-class Player(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    wallet_address: str
-    telegram_id: Optional[str] = None
-    username: Optional[str] = None
-    coins: float = 1000
-    gleaf: float = 0
-    gems: int = 50
-    energy: int = 100
-    max_energy: int = 100
-    level: int = 1
-    xp: int = 0
-    vip_tier: str = "none"
-    total_spent: float = 0
-    total_earned: float = 0
-    total_staked: float = 0
-    referrer_id: Optional[str] = None
-    referral_code: str = Field(default_factory=lambda: secrets.token_hex(6))
-    referral_count: int = 0
-    referral_earnings: float = 0
-    daily_streak: int = 0
-    last_daily_claim: Optional[str] = None
-    last_energy_update: Optional[str] = None
-    active_boosts: List[Dict] = []
-    owned_items: List[str] = []
-    achievements: List[str] = []
-    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    last_active: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-
-class Plot(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    player_id: str
-    slot: int
-    crop_type: Optional[str] = None
-    planted_at: Optional[str] = None
-    ready_at: Optional[str] = None
-    is_ready: bool = False
-    unlocked: bool = True
-    unlock_cost: int = 0
 
 class PlantRequest(BaseModel):
     player_id: str
@@ -148,36 +99,27 @@ class StakeRequest(BaseModel):
 class WithdrawRequest(BaseModel):
     player_id: str
     amount: float
-    currency: str  # "gleaf" or "coins"
+    currency: str
 
 class DailyClaimRequest(BaseModel):
     player_id: str
 
-class ReferralClaimRequest(BaseModel):
-    player_id: str
+class MatchRequest(BaseModel):
+    player1_id: str
+    player2_id: str
+    entry_fee: int = 100
 
-class LeaderboardEntry(BaseModel):
-    rank: int
-    username: str
-    wallet_address: str
-    gleaf: float
-    level: int
-    vip_tier: str
-
-class StakingInfo(BaseModel):
-    player_id: str
-    staked_amount: float
-    daily_reward: float
-    accumulated_rewards: float
-    last_claim: Optional[str] = None
-    stake_start: Optional[str] = None
+class FinishMatchRequest(BaseModel):
+    match_id: str
+    winner_id: str
+    winner_coins: int = 500
+    winner_gleaf: int = 50
 
 # App Setup
-app = FastAPI(title="Cannabis Empire API")
+app = FastAPI(title="Cannabis Empire API - Supabase Edition")
 api_router = APIRouter(prefix="/api")
 
-# Logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Helper Functions
@@ -196,7 +138,7 @@ def calculate_daily_streak_bonus(streak: int) -> Dict:
     base_coins = 100
     base_gleaf = 1
     base_gems = 5
-    multiplier = min(1 + (streak * 0.1), 3.0)  # Max 3x at day 20
+    multiplier = min(1 + (streak * 0.1), 3.0)
     return {
         "coins": int(base_coins * multiplier),
         "gleaf": int(base_gleaf * multiplier),
@@ -208,9 +150,12 @@ async def update_player_energy(player: Dict) -> Dict:
     now = datetime.now(timezone.utc)
     last_update = player.get('last_energy_update')
     if last_update:
-        last_update_dt = datetime.fromisoformat(last_update.replace('Z', '+00:00'))
+        if isinstance(last_update, str):
+            last_update_dt = datetime.fromisoformat(last_update.replace('Z', '+00:00'))
+        else:
+            last_update_dt = last_update
         minutes_passed = (now - last_update_dt).total_seconds() / 60
-        energy_regen = int(minutes_passed)  # 1 energy per minute
+        energy_regen = int(minutes_passed)
         player['energy'] = min(player['energy'] + energy_regen, player['max_energy'])
     player['last_energy_update'] = now.isoformat()
     return player
@@ -218,198 +163,178 @@ async def update_player_energy(player: Dict) -> Dict:
 def apply_boosts(player: Dict, base_value: float, boost_type: str) -> float:
     now = datetime.now(timezone.utc)
     multiplier = 1.0
-    active_boosts = []
-    
-    for boost in player.get('active_boosts', []):
+    active_boosts = player.get('active_boosts', [])
+
+    for boost in active_boosts:
         expires_at = datetime.fromisoformat(boost['expires_at'].replace('Z', '+00:00'))
         if expires_at > now:
-            active_boosts.append(boost)
             if boost_type in boost.get('effect', {}):
                 multiplier *= boost['effect'][boost_type]
-    
-    # Apply VIP bonus
+
     vip_multiplier = VIP_TIERS.get(player.get('vip_tier', 'none'), {}).get('multiplier', 1.0)
-    
+
     return base_value * multiplier * vip_multiplier
 
 # API Endpoints
-
 @api_router.get("/")
 async def root():
-    return {"message": "Cannabis Empire API v1.0", "status": "operational"}
+    return {"message": "Cannabis Empire API v2.0 - Supabase", "status": "operational"}
 
 @api_router.get("/config")
 async def get_config():
     return {
         "crops": CROPS,
         "shop_items": SHOP_ITEMS,
-        "gems_packages": GEMS_PACKAGES,
         "vip_tiers": VIP_TIERS,
         "revenue_wallet": REVENUE_WALLET,
-        "gleaf_contract": GLEAF_CONTRACT
+        "gleaf_contract": GLEAF_CONTRACT,
+        "bot_username": TELEGRAM_BOT_USERNAME
     }
 
 # Player Endpoints
-@api_router.post("/player", response_model=Player)
+@api_router.post("/player")
 async def create_player(data: PlayerCreate):
     # Check if player exists
-    existing = await db.players.find_one({"wallet_address": data.wallet_address}, {"_id": 0})
-    if existing:
-        return Player(**existing)
-    
+    existing = supabase.table('players').select('*').eq('wallet_address', data.wallet_address).execute()
+    if existing.data:
+        return existing.data[0]
+
+    # Generate referral code
+    referral_code = secrets.token_hex(6)
+
     # Create new player
-    player = Player(
-        wallet_address=data.wallet_address,
-        telegram_id=data.telegram_id,
-        username=data.username or f"Grower_{secrets.token_hex(3)}",
-        referrer_id=data.referrer_id
-    )
-    
+    player_data = {
+        "wallet_address": data.wallet_address,
+        "telegram_id": data.telegram_id,
+        "username": data.username or f"Grower_{secrets.token_hex(3)}",
+        "referral_code": referral_code,
+        "referrer_id": data.referrer_id,
+        "coins": 1000,
+        "gleaf": 0,
+        "gems": 50
+    }
+
     # Handle referral
     if data.referrer_id:
-        referrer = await db.players.find_one({"referral_code": data.referrer_id}, {"_id": 0})
-        if referrer:
-            # Give bonus to new player
-            player.coins += 500
-            player.gems += 10
+        referrer = supabase.table('players').select('*').eq('referral_code', data.referrer_id).execute()
+        if referrer.data:
+            player_data["coins"] += 500
+            player_data["gems"] += 10
             # Update referrer
-            await db.players.update_one(
-                {"referral_code": data.referrer_id},
-                {
-                    "$inc": {"referral_count": 1, "referral_earnings": 100, "gleaf": 5},
-                    "$set": {"last_active": datetime.now(timezone.utc).isoformat()}
-                }
-            )
-    
+            ref = referrer.data[0]
+            supabase.table('players').update({
+                "referral_count": ref['referral_count'] + 1,
+                "referral_earnings": ref['referral_earnings'] + 100,
+                "gleaf": ref['gleaf'] + 5
+            }).eq('id', ref['id']).execute()
+
+    result = supabase.table('players').insert(player_data).execute()
+    player = result.data[0]
+
     # Create initial plots (6 slots, first 4 unlocked)
     plots = []
     for i in range(6):
-        plot = Plot(
-            player_id=player.id,
-            slot=i,
-            unlocked=i < 4,
-            unlock_cost=0 if i < 4 else (1000 * (i - 3))
-        )
-        plots.append(plot.model_dump())
-    
-    await db.players.insert_one(player.model_dump())
-    await db.plots.insert_many(plots)
-    
+        plots.append({
+            "player_id": player['id'],
+            "slot": i,
+            "unlocked": i < 4,
+            "unlock_cost": 0 if i < 4 else (1000 * (i - 3))
+        })
+
+    supabase.table('plots').insert(plots).execute()
+
     return player
 
 @api_router.get("/player/{wallet_address}")
 async def get_player(wallet_address: str):
-    player = await db.players.find_one({"wallet_address": wallet_address}, {"_id": 0})
-    if not player:
+    result = supabase.table('players').select('*').eq('wallet_address', wallet_address).execute()
+    if not result.data:
         raise HTTPException(status_code=404, detail="Player not found")
-    
-    player = await update_player_energy(player)
-    await db.players.update_one(
-        {"wallet_address": wallet_address},
-        {"$set": {"energy": player['energy'], "last_energy_update": player['last_energy_update']}}
-    )
-    
-    return player
 
-@api_router.put("/player/{wallet_address}")
-async def update_player(wallet_address: str, updates: Dict[str, Any]):
-    allowed_fields = ['username', 'telegram_id']
-    update_data = {k: v for k, v in updates.items() if k in allowed_fields}
-    update_data['last_active'] = datetime.now(timezone.utc).isoformat()
-    
-    result = await db.players.update_one(
-        {"wallet_address": wallet_address},
-        {"$set": update_data}
-    )
-    
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Player not found")
-    
-    return await get_player(wallet_address)
+    player = result.data[0]
+    player = await update_player_energy(player)
+
+    supabase.table('players').update({
+        "energy": player['energy'],
+        "last_energy_update": player['last_energy_update']
+    }).eq('wallet_address', wallet_address).execute()
+
+    return player
 
 # Garden Endpoints
 @api_router.get("/garden/{player_id}")
 async def get_garden(player_id: str):
-    plots = await db.plots.find({"player_id": player_id}, {"_id": 0}).to_list(100)
-    
+    plots_result = supabase.table('plots').select('*').eq('player_id', player_id).execute()
+    plots = plots_result.data
+
     now = datetime.now(timezone.utc)
     for plot in plots:
         if plot.get('ready_at'):
-            ready_at = datetime.fromisoformat(plot['ready_at'].replace('Z', '+00:00'))
+            ready_at_str = plot['ready_at']
+            if isinstance(ready_at_str, str):
+                ready_at = datetime.fromisoformat(ready_at_str.replace('Z', '+00:00'))
+            else:
+                ready_at = ready_at_str
             plot['is_ready'] = now >= ready_at
             if not plot['is_ready']:
                 plot['time_remaining'] = int((ready_at - now).total_seconds())
             else:
                 plot['time_remaining'] = 0
-    
+
     return {"plots": plots, "crops": CROPS}
 
 @api_router.post("/garden/plant")
 async def plant_crop(data: PlantRequest):
     # Get player
-    player = await db.players.find_one({"id": data.player_id}, {"_id": 0})
-    if not player:
+    player_result = supabase.table('players').select('*').eq('id', data.player_id).execute()
+    if not player_result.data:
         raise HTTPException(status_code=404, detail="Player not found")
-    
+    player = player_result.data[0]
+
     # Get crop info
     crop = CROPS.get(data.crop_type)
     if not crop:
         raise HTTPException(status_code=400, detail="Invalid crop type")
-    
-    # Check level requirement
+
+    # Check requirements
     if player['level'] < crop['level']:
         raise HTTPException(status_code=400, detail=f"Level {crop['level']} required")
-    
-    # Check coins
     if player['coins'] < crop['cost']:
         raise HTTPException(status_code=400, detail="Insufficient coins")
-    
-    # Check energy
     if player['energy'] < 10:
         raise HTTPException(status_code=400, detail="Insufficient energy")
-    
+
     # Get plot
-    plot = await db.plots.find_one({"player_id": data.player_id, "slot": data.slot}, {"_id": 0})
-    if not plot:
+    plot_result = supabase.table('plots').select('*').eq('player_id', data.player_id).eq('slot', data.slot).execute()
+    if not plot_result.data:
         raise HTTPException(status_code=404, detail="Plot not found")
-    
+    plot = plot_result.data[0]
+
     if not plot['unlocked']:
         raise HTTPException(status_code=400, detail="Plot is locked")
-    
     if plot.get('crop_type'):
         raise HTTPException(status_code=400, detail="Plot already has a crop")
-    
-    # Calculate growth time with boosts
+
+    # Calculate growth time
     growth_time = crop['time']
-    speed_multiplier = 1.0
-    for boost in player.get('active_boosts', []):
-        if boost.get('effect', {}).get('growth_speed'):
-            speed_multiplier = boost['effect']['growth_speed']
-    growth_time = int(growth_time / speed_multiplier)
-    
     now = datetime.now(timezone.utc)
     ready_at = now + timedelta(seconds=growth_time)
-    
+
     # Update plot
-    await db.plots.update_one(
-        {"player_id": data.player_id, "slot": data.slot},
-        {"$set": {
-            "crop_type": data.crop_type,
-            "planted_at": now.isoformat(),
-            "ready_at": ready_at.isoformat(),
-            "is_ready": False
-        }}
-    )
-    
+    supabase.table('plots').update({
+        "crop_type": data.crop_type,
+        "planted_at": now.isoformat(),
+        "ready_at": ready_at.isoformat(),
+        "is_ready": False
+    }).eq('player_id', data.player_id).eq('slot', data.slot).execute()
+
     # Deduct cost and energy
-    await db.players.update_one(
-        {"id": data.player_id},
-        {
-            "$inc": {"coins": -crop['cost'], "energy": -10, "xp": 10},
-            "$set": {"last_active": now.isoformat()}
-        }
-    )
-    
+    supabase.table('players').update({
+        "coins": player['coins'] - crop['cost'],
+        "energy": player['energy'] - 10,
+        "xp": player['xp'] + 10
+    }).eq('id', data.player_id).execute()
+
     return {
         "success": True,
         "message": f"Planted {crop['name']}",
@@ -420,31 +345,33 @@ async def plant_crop(data: PlantRequest):
 @api_router.post("/garden/harvest")
 async def harvest_crop(data: HarvestRequest):
     # Get player
-    player = await db.players.find_one({"id": data.player_id}, {"_id": 0})
-    if not player:
+    player_result = supabase.table('players').select('*').eq('id', data.player_id).execute()
+    if not player_result.data:
         raise HTTPException(status_code=404, detail="Player not found")
-    
+    player = player_result.data[0]
+
     # Get plot
-    plot = await db.plots.find_one({"player_id": data.player_id, "slot": data.slot}, {"_id": 0})
-    if not plot:
+    plot_result = supabase.table('plots').select('*').eq('player_id', data.player_id).eq('slot', data.slot).execute()
+    if not plot_result.data:
         raise HTTPException(status_code=404, detail="Plot not found")
-    
+    plot = plot_result.data[0]
+
     if not plot.get('crop_type'):
         raise HTTPException(status_code=400, detail="No crop to harvest")
-    
+
     # Check if ready
     now = datetime.now(timezone.utc)
     ready_at = datetime.fromisoformat(plot['ready_at'].replace('Z', '+00:00'))
     if now < ready_at:
         raise HTTPException(status_code=400, detail="Crop not ready yet")
-    
+
     # Get crop info
     crop = CROPS.get(plot['crop_type'])
-    
+
     # Calculate rewards with boosts
     coin_reward = apply_boosts(player, crop['reward'], 'yield_multiplier')
     gleaf_reward = apply_boosts(player, crop['gleaf'], 'gleaf_multiplier')
-    
+
     # Level up check
     new_xp = player['xp'] + 25
     new_level = player['level']
@@ -453,27 +380,24 @@ async def harvest_crop(data: HarvestRequest):
         new_xp -= xp_needed
         new_level += 1
         xp_needed = new_level * 100
-    
+
     # Clear plot
-    await db.plots.update_one(
-        {"player_id": data.player_id, "slot": data.slot},
-        {"$set": {
-            "crop_type": None,
-            "planted_at": None,
-            "ready_at": None,
-            "is_ready": False
-        }}
-    )
-    
+    supabase.table('plots').update({
+        "crop_type": None,
+        "planted_at": None,
+        "ready_at": None,
+        "is_ready": False
+    }).eq('player_id', data.player_id).eq('slot', data.slot).execute()
+
     # Update player
-    await db.players.update_one(
-        {"id": data.player_id},
-        {
-            "$inc": {"coins": coin_reward, "gleaf": gleaf_reward, "total_earned": coin_reward},
-            "$set": {"xp": new_xp, "level": new_level, "last_active": now.isoformat()}
-        }
-    )
-    
+    supabase.table('players').update({
+        "coins": player['coins'] + coin_reward,
+        "gleaf": player['gleaf'] + gleaf_reward,
+        "total_earned": player['total_earned'] + coin_reward,
+        "xp": new_xp,
+        "level": new_level
+    }).eq('id', data.player_id).execute()
+
     return {
         "success": True,
         "rewards": {
@@ -485,34 +409,6 @@ async def harvest_crop(data: HarvestRequest):
         "new_level": new_level
     }
 
-@api_router.post("/garden/unlock")
-async def unlock_plot(player_id: str, slot: int):
-    player = await db.players.find_one({"id": player_id}, {"_id": 0})
-    if not player:
-        raise HTTPException(status_code=404, detail="Player not found")
-    
-    plot = await db.plots.find_one({"player_id": player_id, "slot": slot}, {"_id": 0})
-    if not plot:
-        raise HTTPException(status_code=404, detail="Plot not found")
-    
-    if plot['unlocked']:
-        raise HTTPException(status_code=400, detail="Plot already unlocked")
-    
-    if player['coins'] < plot['unlock_cost']:
-        raise HTTPException(status_code=400, detail="Insufficient coins")
-    
-    await db.plots.update_one(
-        {"player_id": player_id, "slot": slot},
-        {"$set": {"unlocked": True}}
-    )
-    
-    await db.players.update_one(
-        {"id": player_id},
-        {"$inc": {"coins": -plot['unlock_cost']}}
-    )
-    
-    return {"success": True, "message": f"Unlocked plot {slot}"}
-
 # Shop Endpoints
 @api_router.get("/shop")
 async def get_shop():
@@ -520,30 +416,27 @@ async def get_shop():
 
 @api_router.post("/shop/purchase")
 async def purchase_item(data: PurchaseRequest):
-    player = await db.players.find_one({"id": data.player_id}, {"_id": 0})
-    if not player:
+    player_result = supabase.table('players').select('*').eq('id', data.player_id).execute()
+    if not player_result.data:
         raise HTTPException(status_code=404, detail="Player not found")
-    
+    player = player_result.data[0]
+
     # Find item
-    item = None
-    for category_items in SHOP_ITEMS.get(data.category, []):
-        if category_items['id'] == data.item_id:
-            item = category_items
-            break
-    
+    category_items = SHOP_ITEMS.get(data.category, [])
+    item = next((item for item in category_items if item['id'] == data.item_id), None)
+
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
-    
+
     # Check currency
     if item['currency'] == 'gems' and player['gems'] < item['price']:
         raise HTTPException(status_code=400, detail="Insufficient gems")
     elif item['currency'] == 'coins' and player['coins'] < item['price']:
         raise HTTPException(status_code=400, detail="Insufficient coins")
-    
+
     now = datetime.now(timezone.utc)
-    updates = {"last_active": now.isoformat()}
-    increments = {}
-    
+    updates = {}
+
     # Handle different item types
     if data.category == "boosts":
         if item.get('duration'):
@@ -558,88 +451,37 @@ async def purchase_item(data: PurchaseRequest):
             active_boosts.append(boost)
             updates['active_boosts'] = active_boosts
         elif item.get('energy'):
-            increments['energy'] = item['energy']
-    
+            updates['energy'] = min(player['energy'] + item['energy'], player['max_energy'])
+
     elif data.category == "premium":
         updates['vip_tier'] = item['tier']
         updates['total_spent'] = player.get('total_spent', 0) + item['price']
-    
-    elif data.category in ["cosmetics", "nfts"]:
-        owned = player.get('owned_items', [])
-        if item['id'] not in owned:
-            owned.append(item['id'])
-            updates['owned_items'] = owned
-    
+
     # Deduct currency
     if item['currency'] == 'gems':
-        increments['gems'] = -item['price']
+        updates['gems'] = player['gems'] - item['price']
     else:
-        increments['coins'] = -item['price']
-    
-    update_query = {"$set": updates}
-    if increments:
-        update_query["$inc"] = increments
-    
-    await db.players.update_one({"id": data.player_id}, update_query)
-    
+        updates['coins'] = player['coins'] - item['price']
+
+    supabase.table('players').update(updates).eq('id', data.player_id).execute()
+
     return {
         "success": True,
         "message": f"Purchased {item['name']}",
         "item": item
     }
 
-@api_router.get("/shop/gems-packages")
-async def get_gems_packages():
-    return GEMS_PACKAGES
-
-@api_router.post("/shop/purchase-gems")
-async def purchase_gems(player_id: str, package_id: str):
-    player = await db.players.find_one({"id": player_id}, {"_id": 0})
-    if not player:
-        raise HTTPException(status_code=404, detail="Player not found")
-    
-    package = None
-    for p in GEMS_PACKAGES:
-        if p['id'] == package_id:
-            package = p
-            break
-    
-    if not package:
-        raise HTTPException(status_code=404, detail="Package not found")
-    
-    total_gems = package['gems'] + package['bonus']
-    
-    # In production, this would verify Telegram Stars payment
-    await db.players.update_one(
-        {"id": player_id},
-        {
-            "$inc": {"gems": total_gems, "total_spent": package['stars']},
-            "$set": {"last_active": datetime.now(timezone.utc).isoformat()}
-        }
-    )
-    
-    # Update VIP tier based on spending
-    updated_player = await db.players.find_one({"id": player_id}, {"_id": 0})
-    new_tier = calculate_vip_tier(updated_player.get('total_spent', 0))
-    if new_tier != updated_player.get('vip_tier'):
-        await db.players.update_one({"id": player_id}, {"$set": {"vip_tier": new_tier}})
-    
-    return {
-        "success": True,
-        "gems_received": total_gems,
-        "new_balance": updated_player['gems'] + total_gems
-    }
-
 # Staking Endpoints
 @api_router.get("/staking/{player_id}")
 async def get_staking_info(player_id: str):
-    staking = await db.staking.find_one({"player_id": player_id}, {"_id": 0})
-    player = await db.players.find_one({"id": player_id}, {"_id": 0})
-    
-    if not player:
+    staking_result = supabase.table('staking').select('*').eq('player_id', player_id).execute()
+    player_result = supabase.table('players').select('*').eq('id', player_id).execute()
+
+    if not player_result.data:
         raise HTTPException(status_code=404, detail="Player not found")
-    
-    if not staking:
+    player = player_result.data[0]
+
+    if not staking_result.data:
         return {
             "player_id": player_id,
             "staked_amount": 0,
@@ -647,20 +489,22 @@ async def get_staking_info(player_id: str):
             "accumulated_rewards": 0,
             "available_gleaf": player.get('gleaf', 0)
         }
-    
+
+    staking = staking_result.data[0]
+
     # Calculate accumulated rewards
     now = datetime.now(timezone.utc)
     last_claim = staking.get('last_claim')
     accumulated = staking.get('accumulated_rewards', 0)
-    
+
     if last_claim and staking.get('staked_amount', 0) > 0:
         last_claim_dt = datetime.fromisoformat(last_claim.replace('Z', '+00:00'))
         days_passed = (now - last_claim_dt).total_seconds() / 86400
-        daily_rate = 0.001  # 0.1% daily
+        daily_rate = 0.001
         vip_bonus = VIP_TIERS.get(player.get('vip_tier', 'none'), {}).get('multiplier', 1.0)
         new_rewards = staking['staked_amount'] * daily_rate * days_passed * vip_bonus
         accumulated += new_rewards
-    
+
     return {
         "player_id": player_id,
         "staked_amount": staking.get('staked_amount', 0),
@@ -672,114 +516,84 @@ async def get_staking_info(player_id: str):
 
 @api_router.post("/staking/stake")
 async def stake_gleaf(data: StakeRequest):
-    player = await db.players.find_one({"id": data.player_id}, {"_id": 0})
-    if not player:
+    player_result = supabase.table('players').select('*').eq('id', data.player_id).execute()
+    if not player_result.data:
         raise HTTPException(status_code=404, detail="Player not found")
-    
+    player = player_result.data[0]
+
     if player['gleaf'] < data.amount:
         raise HTTPException(status_code=400, detail="Insufficient GLeaf")
-    
     if data.amount < 100:
         raise HTTPException(status_code=400, detail="Minimum stake is 100 GLeaf")
-    
+
     now = datetime.now(timezone.utc)
-    
+
     # Get or create staking record
-    staking = await db.staking.find_one({"player_id": data.player_id}, {"_id": 0})
-    
-    if staking:
-        await db.staking.update_one(
-            {"player_id": data.player_id},
-            {
-                "$inc": {"staked_amount": data.amount},
-                "$set": {"last_claim": now.isoformat()}
-            }
-        )
+    staking_result = supabase.table('staking').select('*').eq('player_id', data.player_id).execute()
+
+    if staking_result.data:
+        staking = staking_result.data[0]
+        supabase.table('staking').update({
+            "staked_amount": staking['staked_amount'] + data.amount,
+            "last_claim": now.isoformat()
+        }).eq('player_id', data.player_id).execute()
     else:
-        await db.staking.insert_one({
-            "id": str(uuid.uuid4()),
+        supabase.table('staking').insert({
             "player_id": data.player_id,
             "staked_amount": data.amount,
             "accumulated_rewards": 0,
             "last_claim": now.isoformat(),
             "stake_start": now.isoformat()
-        })
-    
-    await db.players.update_one(
-        {"id": data.player_id},
-        {
-            "$inc": {"gleaf": -data.amount, "total_staked": data.amount},
-            "$set": {"last_active": now.isoformat()}
-        }
-    )
-    
-    return {"success": True, "staked": data.amount}
+        }).execute()
 
-@api_router.post("/staking/unstake")
-async def unstake_gleaf(data: StakeRequest):
-    staking = await db.staking.find_one({"player_id": data.player_id}, {"_id": 0})
-    if not staking or staking['staked_amount'] < data.amount:
-        raise HTTPException(status_code=400, detail="Insufficient staked amount")
-    
-    now = datetime.now(timezone.utc)
-    
-    await db.staking.update_one(
-        {"player_id": data.player_id},
-        {
-            "$inc": {"staked_amount": -data.amount},
-            "$set": {"last_claim": now.isoformat()}
-        }
-    )
-    
-    await db.players.update_one(
-        {"id": data.player_id},
-        {
-            "$inc": {"gleaf": data.amount, "total_staked": -data.amount},
-            "$set": {"last_active": now.isoformat()}
-        }
-    )
-    
-    return {"success": True, "unstaked": data.amount}
+    supabase.table('players').update({
+        "gleaf": player['gleaf'] - data.amount,
+        "total_staked": player['total_staked'] + data.amount
+    }).eq('id', data.player_id).execute()
+
+    return {"success": True, "staked": data.amount}
 
 @api_router.post("/staking/claim")
 async def claim_staking_rewards(player_id: str):
     staking_info = await get_staking_info(player_id)
-    
+
     if staking_info['accumulated_rewards'] < 1:
         raise HTTPException(status_code=400, detail="No rewards to claim")
-    
+
     now = datetime.now(timezone.utc)
     rewards = int(staking_info['accumulated_rewards'])
-    
-    await db.staking.update_one(
-        {"player_id": player_id},
-        {"$set": {"accumulated_rewards": 0, "last_claim": now.isoformat()}}
-    )
-    
-    await db.players.update_one(
-        {"id": player_id},
-        {"$inc": {"gleaf": rewards}}
-    )
-    
+
+    supabase.table('staking').update({
+        "accumulated_rewards": 0,
+        "last_claim": now.isoformat()
+    }).eq('player_id', player_id).execute()
+
+    player_result = supabase.table('players').select('gleaf').eq('id', player_id).execute()
+    if player_result.data:
+        player = player_result.data[0]
+        supabase.table('players').update({
+            "gleaf": player['gleaf'] + rewards
+        }).eq('id', player_id).execute()
+
     return {"success": True, "claimed": rewards}
 
 # Daily Rewards
 @api_router.post("/rewards/daily")
 async def claim_daily_reward(data: DailyClaimRequest):
-    player = await db.players.find_one({"id": data.player_id}, {"_id": 0})
-    if not player:
+    player_result = supabase.table('players').select('*').eq('id', data.player_id).execute()
+    if not player_result.data:
         raise HTTPException(status_code=404, detail="Player not found")
-    
+    player = player_result.data[0]
+
     now = datetime.now(timezone.utc)
     today = now.date().isoformat()
-    
+
     last_claim = player.get('last_daily_claim')
     if last_claim:
         last_claim_date = last_claim[:10]
         if last_claim_date == today:
             raise HTTPException(status_code=400, detail="Already claimed today")
-        
-        # Check streak
+
         yesterday = (now - timedelta(days=1)).date().isoformat()
         if last_claim_date == yesterday:
             new_streak = player.get('daily_streak', 0) + 1
@@ -787,25 +601,17 @@ async def claim_daily_reward(data: DailyClaimRequest):
             new_streak = 1
     else:
         new_streak = 1
-    
+
     rewards = calculate_daily_streak_bonus(new_streak)
-    
-    await db.players.update_one(
-        {"id": data.player_id},
-        {
-            "$inc": {
-                "coins": rewards['coins'],
-                "gleaf": rewards['gleaf'],
-                "gems": rewards['gems']
-            },
-            "$set": {
-                "daily_streak": new_streak,
-                "last_daily_claim": now.isoformat(),
-                "last_active": now.isoformat()
-            }
-        }
-    )
-    
+
+    supabase.table('players').update({
+        "coins": player['coins'] + rewards['coins'],
+        "gleaf": player['gleaf'] + rewards['gleaf'],
+        "gems": player['gems'] + rewards['gems'],
+        "daily_streak": new_streak,
+        "last_daily_claim": now.isoformat()
+    }).eq('id', data.player_id).execute()
+
     return {
         "success": True,
         "streak": new_streak,
@@ -815,18 +621,17 @@ async def claim_daily_reward(data: DailyClaimRequest):
 # Referral System
 @api_router.get("/referrals/{player_id}")
 async def get_referral_info(player_id: str):
-    player = await db.players.find_one({"id": player_id}, {"_id": 0})
-    if not player:
+    player_result = supabase.table('players').select('*').eq('id', player_id).execute()
+    if not player_result.data:
         raise HTTPException(status_code=404, detail="Player not found")
-    
+    player = player_result.data[0]
+
     # Get referred players
-    referrals = await db.players.find(
-        {"referrer_id": player['referral_code']},
-        {"_id": 0, "username": 1, "level": 1, "created_at": 1}
-    ).to_list(100)
-    
+    referrals_result = supabase.table('players').select('username, level, created_at').eq('referrer_id', player['referral_code']).execute()
+    referrals = referrals_result.data
+
     vip_bonus = VIP_TIERS.get(player.get('vip_tier', 'none'), {}).get('referral_bonus', 0.05)
-    
+
     return {
         "referral_code": player['referral_code'],
         "referral_count": player.get('referral_count', 0),
@@ -837,14 +642,10 @@ async def get_referral_info(player_id: str):
 
 # Leaderboard
 @api_router.get("/leaderboard")
-async def get_leaderboard(limit: int = 50, sort_by: str = "gleaf"):
-    sort_field = "gleaf" if sort_by == "gleaf" else "level"
-    
-    players = await db.players.find(
-        {},
-        {"_id": 0, "username": 1, "wallet_address": 1, "gleaf": 1, "level": 1, "vip_tier": 1}
-    ).sort(sort_field, -1).limit(limit).to_list(limit)
-    
+async def get_leaderboard(limit: int = 50):
+    result = supabase.table('players').select('username, wallet_address, gleaf, level, vip_tier').order('gleaf', desc=True).limit(limit).execute()
+    players = result.data
+
     leaderboard = []
     for i, p in enumerate(players):
         leaderboard.append({
@@ -855,27 +656,27 @@ async def get_leaderboard(limit: int = 50, sort_by: str = "gleaf"):
             "level": p.get('level', 1),
             "vip_tier": p.get('vip_tier', 'none')
         })
-    
+
     return leaderboard
 
 # Wallet/Withdraw
 @api_router.post("/wallet/withdraw")
 async def withdraw(data: WithdrawRequest):
-    player = await db.players.find_one({"id": data.player_id}, {"_id": 0})
-    if not player:
+    player_result = supabase.table('players').select('*').eq('id', data.player_id).execute()
+    if not player_result.data:
         raise HTTPException(status_code=404, detail="Player not found")
-    
+    player = player_result.data[0]
+
     if data.currency == "gleaf":
         if player['gleaf'] < data.amount:
             raise HTTPException(status_code=400, detail="Insufficient GLeaf")
         if data.amount < 100:
             raise HTTPException(status_code=400, detail="Minimum withdrawal is 100 GLeaf")
-    
+
     now = datetime.now(timezone.utc)
-    
+
     # Create withdrawal record
     withdrawal = {
-        "id": str(uuid.uuid4()),
         "player_id": data.player_id,
         "wallet_address": player['wallet_address'],
         "amount": data.amount,
@@ -883,49 +684,137 @@ async def withdraw(data: WithdrawRequest):
         "status": "pending",
         "created_at": now.isoformat()
     }
-    
-    await db.withdrawals.insert_one(withdrawal)
-    
+
+    result = supabase.table('withdrawals').insert(withdrawal).execute()
+    withdrawal_id = result.data[0]['id']
+
     # Deduct from player
-    await db.players.update_one(
-        {"id": data.player_id},
-        {
-            "$inc": {data.currency: -data.amount},
-            "$set": {"last_active": now.isoformat()}
-        }
-    )
-    
+    if data.currency == "gleaf":
+        supabase.table('players').update({
+            "gleaf": player['gleaf'] - data.amount
+        }).eq('id', data.player_id).execute()
+    else:
+        supabase.table('players').update({
+            "coins": player['coins'] - data.amount
+        }).eq('id', data.player_id).execute()
+
     return {
         "success": True,
-        "withdrawal_id": withdrawal['id'],
+        "withdrawal_id": withdrawal_id,
         "status": "pending",
         "message": "Withdrawal request submitted"
     }
 
-@api_router.get("/wallet/history/{player_id}")
-async def get_wallet_history(player_id: str):
-    withdrawals = await db.withdrawals.find(
-        {"player_id": player_id},
-        {"_id": 0}
-    ).sort("created_at", -1).limit(50).to_list(50)
-    
-    return withdrawals
+# Telegram Bot Webhook
+@api_router.post("/telegram/webhook")
+async def telegram_webhook(data: Dict[str, Any]):
+    try:
+        # Simple webhook handler - integrate with telegram_bot.py
+        return {"ok": True}
+    except Exception as e:
+        logger.error(f"Webhook error: {e}")
+        return {"ok": False, "error": str(e)}
+
+# Telegram Cloud Storage
+@api_router.post("/telegram/cloud-save")
+async def cloud_save(telegram_id: int, data: Dict[str, Any]):
+    now = datetime.now(timezone.utc)
+
+    result = supabase.table('telegram_cloud_storage').upsert({
+        "telegram_id": telegram_id,
+        "data": data,
+        "updated_at": now.isoformat()
+    }).execute()
+
+    return {"success": True, "data": result.data[0] if result.data else None}
+
+@api_router.get("/telegram/cloud-load/{telegram_id}")
+async def cloud_load(telegram_id: int):
+    result = supabase.table('telegram_cloud_storage').select('*').eq('telegram_id', telegram_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="No saved data")
+    return result.data[0]
+
+# Multiplayer Endpoints
+@api_router.post("/multiplayer/create-match")
+async def create_ranked_match(data: MatchRequest):
+    now = datetime.now(timezone.utc)
+    match_data = {
+        "player1_id": data.player1_id,
+        "player2_id": data.player2_id,
+        "status": "waiting",
+        "entry_fee": data.entry_fee,
+        "match_type": "ranked",
+        "created_at": now.isoformat()
+    }
+
+    result = supabase.table('multiplayer_matches').insert(match_data).execute()
+    return result.data[0]
+
+@api_router.post("/multiplayer/start/{match_id}")
+async def start_match(match_id: str):
+    now = datetime.now(timezone.utc)
+    supabase.table('multiplayer_matches').update({
+        "status": "active",
+        "started_at": now.isoformat()
+    }).eq('id', match_id).execute()
+
+    return {"success": True, "message": "Match started"}
+
+@api_router.post("/multiplayer/finish")
+async def finish_match(data: FinishMatchRequest):
+    now = datetime.now(timezone.utc)
+    rewards = {"coins": data.winner_coins, "gleaf": data.winner_gleaf}
+
+    supabase.table('multiplayer_matches').update({
+        "status": "completed",
+        "ended_at": now.isoformat(),
+        "winner_id": data.winner_id,
+        "rewards": rewards
+    }).eq('id', data.match_id).execute()
+
+    # Award rewards
+    player_result = supabase.table('players').select('*').eq('id', data.winner_id).execute()
+    if player_result.data:
+        player = player_result.data[0]
+        supabase.table('players').update({
+            "coins": player['coins'] + rewards['coins'],
+            "gleaf": player['gleaf'] + rewards['gleaf']
+        }).eq('id', data.winner_id).execute()
+
+    return {"success": True, "rewards": rewards}
+
+@api_router.get("/multiplayer/stats/{player_id}")
+async def get_multiplayer_stats(player_id: str):
+    result = supabase.table('player_multiplayer_stats').select('*').eq('player_id', player_id).execute()
+
+    if not result.data:
+        return {
+            "player_id": player_id,
+            "wins": 0,
+            "losses": 0,
+            "draws": 0,
+            "rating": 1000,
+            "total_matches": 0
+        }
+
+    return result.data[0]
 
 # Stats
 @api_router.get("/stats/global")
 async def get_global_stats():
-    total_players = await db.players.count_documents({})
-    total_gleaf = await db.players.aggregate([
-        {"$group": {"_id": None, "total": {"$sum": "$gleaf"}}}
-    ]).to_list(1)
-    total_staked = await db.staking.aggregate([
-        {"$group": {"_id": None, "total": {"$sum": "$staked_amount"}}}
-    ]).to_list(1)
-    
+    players_result = supabase.table('players').select('gleaf', count='exact').execute()
+    total_players = players_result.count
+
+    total_gleaf = sum([p['gleaf'] for p in players_result.data]) if players_result.data else 0
+
+    staking_result = supabase.table('staking').select('staked_amount').execute()
+    total_staked = sum([s['staked_amount'] for s in staking_result.data]) if staking_result.data else 0
+
     return {
         "total_players": total_players,
-        "total_gleaf_circulation": total_gleaf[0]['total'] if total_gleaf else 0,
-        "total_staked": total_staked[0]['total'] if total_staked else 0
+        "total_gleaf_circulation": total_gleaf,
+        "total_staked": total_staked
     }
 
 # Include router
@@ -934,11 +823,7 @@ app.include_router(api_router)
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-@app.on_event("shutdown")
-async def shutdown_db_client():
-    client.close()
