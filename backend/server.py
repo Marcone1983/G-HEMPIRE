@@ -27,14 +27,14 @@ REVENUE_WALLET = os.environ.get('REVENUE_WALLET', 'UQArbhbVEIkN4xSWis30yIrNGdmOT
 GLEAF_CONTRACT = os.environ.get('GLEAF_CONTRACT', 'EQBynBO23ywHy_CgarY9NK9FTz0yDsG82PtcbSTQgGoXwiuA')
 STAKING_CONTRACT = os.environ.get('STAKING_CONTRACT', 'EQBstk4q4G6yk7qVKCN7O6dpFTR9znN1hEaGSAoN1sVRr5l_')
 
-# Game Constants
+# Game Constants - EVO Seed Varieties
 CROPS = {
-    "cannabis_basic": {"name": "Cannabis Basic", "cost": 100, "time": 3600, "reward": 200, "gleaf": 1, "rarity": "common", "level": 1, "emoji": "🌿"},
-    "hybrid_strain": {"name": "Hybrid Strain", "cost": 500, "time": 7200, "reward": 1200, "gleaf": 5, "rarity": "uncommon", "level": 3, "emoji": "🌱"},
-    "blueberry_kush": {"name": "Blueberry Kush", "cost": 2000, "time": 14400, "reward": 5000, "gleaf": 20, "rarity": "rare", "level": 5, "emoji": "🫐"},
-    "purple_haze": {"name": "Purple Haze", "cost": 8000, "time": 28800, "reward": 22000, "gleaf": 80, "rarity": "epic", "level": 8, "emoji": "💜"},
-    "golden_bud": {"name": "Golden Bud", "cost": 30000, "time": 43200, "reward": 85000, "gleaf": 300, "rarity": "legendary", "level": 12, "emoji": "✨"},
-    "moon_rocks": {"name": "Moon Rocks", "cost": 100000, "time": 86400, "reward": 300000, "gleaf": 1000, "rarity": "mythic", "level": 15, "emoji": "🌙"},
+    "evo_kush": {"name": "EVO KUSH", "cost": 100, "time": 3600, "reward": 200, "gleaf": 1, "rarity": "common", "level": 1, "seed_image": "seed_evo_kush.png"},
+    "evo_cheese": {"name": "EVO-CHEESE", "cost": 500, "time": 7200, "reward": 1200, "gleaf": 5, "rarity": "uncommon", "level": 3, "seed_image": "seed_evo_cheese.png"},
+    "evo_skunk": {"name": "EVO-SKUNK", "cost": 2000, "time": 14400, "reward": 5000, "gleaf": 20, "rarity": "rare", "level": 5, "seed_image": "seed_evo_skunk.png"},
+    "evo_og": {"name": "EVO-OG", "cost": 8000, "time": 28800, "reward": 22000, "gleaf": 80, "rarity": "epic", "level": 8, "seed_image": "seed_evo_og.png"},
+    "golden_bud": {"name": "Golden Bud", "cost": 30000, "time": 43200, "reward": 85000, "gleaf": 300, "rarity": "legendary", "level": 12, "seed_image": "seed_evo_og.png"},
+    "moon_rocks": {"name": "Moon Rocks", "cost": 100000, "time": 86400, "reward": 300000, "gleaf": 1000, "rarity": "mythic", "level": 15, "seed_image": "seed_evo_og.png"},
 }
 
 SHOP_ITEMS = {
