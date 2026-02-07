@@ -269,7 +269,11 @@ const PlotCard = ({ plot, crops, onPlant, onHarvest, playerLevel }) => {
                     data-testid={`crop-select-${key}`}
                   >
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="text-2xl">{c.emoji}</span>
+                      <img 
+                        src="/plant_phase1.png" 
+                        alt={c.name} 
+                        className="w-12 h-12 object-contain"
+                      />
                       <div>
                         <div className="font-semibold text-sm">{c.name}</div>
                         <RarityBadge rarity={c.rarity} />
