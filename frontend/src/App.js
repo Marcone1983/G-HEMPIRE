@@ -289,16 +289,16 @@ const PlotCard = ({ plot, crops, onPlant, onHarvest, playerLevel }) => {
                   >
                     <div className="flex items-center gap-2 mb-2">
                       <img 
-                        src="/plant_phase1.png" 
+                        src="/seedling_1.png" 
                         alt={c.name} 
-                        className="w-12 h-12 object-contain"
+                        className="w-10 h-10 object-contain"
                       />
-                      <div>
-                        <div className="font-semibold text-sm">{c.name}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-sm truncate">{c.name}</div>
                         <RarityBadge rarity={c.rarity} />
                       </div>
                     </div>
-                    <div className="text-xs text-gray-400 space-y-1">
+                    <div className="text-xs text-gray-400 space-y-0.5">
                       <div className="flex justify-between">
                         <span>Cost:</span>
                         <span className="text-yellow-400">{formatNumber(c.cost)}</span>
