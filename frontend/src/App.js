@@ -106,20 +106,22 @@ const BalanceBar = ({ player, onRefresh }) => {
   );
 };
 
-// Growth phase images - 8 stages from seedling to harvest
+// Growth phase images - 9 stages from seed to harvest
 const GROWTH_PHASES = {
-  1: "/seedling_1.png",     // Tiny seedling just sprouted
-  2: "/seedling_2.png",     // Small seedling growing
-  3: "/vegetative_1.png",   // Early vegetative stage
-  4: "/vegetative_2.png",   // Mid vegetative stage  
-  5: "/vegetative_3.png",   // Late vegetative (bushy)
-  6: "/plant_phase3.png",   // Pre-flowering with buds forming
-  7: "/plant_phase4.png",   // Flowering/Mature (golden)
-  8: "/plant_ready.png",    // Ready to harvest (bud)
+  0: "/sprout_seed.png",      // Seed just planted with sprout emerging
+  1: "/seedling_1.png",       // Tiny seedling just sprouted
+  2: "/seedling_2.png",       // Small seedling growing
+  3: "/vegetative_1.png",     // Early vegetative stage
+  4: "/vegetative_2.png",     // Mid vegetative stage  
+  5: "/vegetative_3.png",     // Late vegetative (bushy)
+  6: "/plant_phase3.png",     // Pre-flowering with buds forming
+  7: "/plant_phase4.png",     // Flowering/Mature (golden)
+  8: "/plant_ready.png",      // Ready to harvest (bud)
 };
 
 // Phase names for display
 const PHASE_NAMES = {
+  0: "Planted",
   1: "Seedling",
   2: "Sprouting", 
   3: "Vegetative",
@@ -130,17 +132,18 @@ const PHASE_NAMES = {
   8: "Ready!"
 };
 
-// Get growth phase based on time remaining (8 phases)
+// Get growth phase based on time remaining (9 phases: 0-8)
 const getGrowthPhase = (timeRemaining, totalTime) => {
   if (timeRemaining <= 0) return 8; // Ready
   const progress = 1 - (timeRemaining / totalTime);
-  if (progress < 0.12) return 1;  // 0-12%
-  if (progress < 0.25) return 2;  // 12-25%
-  if (progress < 0.38) return 3;  // 25-38%
-  if (progress < 0.50) return 4;  // 38-50%
-  if (progress < 0.65) return 5;  // 50-65%
-  if (progress < 0.80) return 6;  // 65-80%
-  if (progress < 0.95) return 7;  // 80-95%
+  if (progress < 0.05) return 0;   // 0-5% - Just planted
+  if (progress < 0.15) return 1;   // 5-15%
+  if (progress < 0.25) return 2;   // 15-25%
+  if (progress < 0.38) return 3;   // 25-38%
+  if (progress < 0.50) return 4;   // 38-50%
+  if (progress < 0.65) return 5;   // 50-65%
+  if (progress < 0.80) return 6;   // 65-80%
+  if (progress < 0.95) return 7;   // 80-95%
   return 7;
 };
 
