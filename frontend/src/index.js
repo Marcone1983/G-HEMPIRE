@@ -9,3 +9,20 @@ root.render(
     <App />
   </React.StrictMode>,
 );
+
+// Register service worker for PWA functionality
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register(`${process.env.PUBLIC_URL}/service-worker.js`)
+      .then((registration) => {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Service Worker registered successfully:', registration.scope);
+        }
+      })
+      .catch((error) => {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Service Worker registration failed:', error);
+        }
+      });
+  });
+}

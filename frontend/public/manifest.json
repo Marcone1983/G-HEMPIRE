@@ -1,0 +1,18 @@
+{
+  "short_name": "G-HEMPIRE",
+  "name": "G-HEMPIRE",
+  "description": "G-HEMPIRE Progressive Web App",
+  "icons": [
+    {
+      "src": "sprout_seed.png",
+      "sizes": "1536x1800",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/G-HEMPIRE/",
+  "display": "standalone",
+  "theme_color": "#000000",
+  "background_color": "#ffffff",
+  "orientation": "portrait"
+}
