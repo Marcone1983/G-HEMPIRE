@@ -292,12 +292,12 @@ const PlotCard = ({ plot, crops, onPlant, onHarvest, playerLevel }) => {
                   >
                     <div className="flex items-center gap-2 mb-2">
                       <img 
-                        src="/seedling_1.png" 
+                        src={`/${c.seed_image || 'seed_evo_kush.png'}`}
                         alt={c.name} 
-                        className="w-10 h-10 object-contain"
+                        className="w-14 h-14 object-contain rounded-lg"
                       />
                       <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-sm truncate">{c.name}</div>
+                        <div className="font-bold text-sm truncate">{c.name}</div>
                         <RarityBadge rarity={c.rarity} />
                       </div>
                     </div>
