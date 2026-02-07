@@ -5,13 +5,7 @@
   "icons": [
     {
       "src": "sprout_seed.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "sprout_seed.png",
-      "sizes": "512x512",
+      "sizes": "1536x1800",
       "type": "image/png",
       "purpose": "any maskable"
     }
