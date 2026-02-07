@@ -9,7 +9,12 @@ export default defineConfig(({ mode }) => {
   const backendUrl = `${supabaseUrl}/functions/v1/game-api`;
 
   return {
+    base: '/G-HEMPIRE/',
     plugins: [react()],
+    build: {
+      outDir: path.resolve(__dirname, '../docs'),
+      emptyOutDir: true,
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),

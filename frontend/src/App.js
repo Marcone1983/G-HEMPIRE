@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { BrowserRouter, Routes, Route, useNavigate, useLocation } from "react-router-dom";
+import { HashRouter, Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import { TonConnectUIProvider, useTonConnectUI, useTonAddress, useTonConnectModal } from "@tonconnect/ui-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Toaster, toast } from "sonner";
@@ -15,8 +15,9 @@ import "@/App.css";
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-// Manifest for TON Connect
-const manifestUrl = `${window.location.origin}/tonconnect-manifest.json`;
+const BASE = import.meta.env.BASE_URL;
+
+const manifestUrl = `${window.location.origin}${BASE}tonconnect-manifest.json`;
 
 // Format numbers with separators
 const formatNumber = (num) => {
@@ -108,15 +109,15 @@ const BalanceBar = ({ player, onRefresh }) => {
 
 // Growth phase images - 9 stages from seed to harvest
 const GROWTH_PHASES = {
-  0: "/sprout_seed.png",      // Seed just planted with sprout emerging
-  1: "/seedling_1.png",       // Tiny seedling just sprouted
-  2: "/seedling_2.png",       // Small seedling growing
-  3: "/vegetative_1.png",     // Early vegetative stage
-  4: "/vegetative_2.png",     // Mid vegetative stage  
-  5: "/vegetative_3.png",     // Late vegetative (bushy)
-  6: "/plant_phase3.png",     // Pre-flowering with buds forming
-  7: "/plant_phase4.png",     // Flowering/Mature (golden)
-  8: "/plant_ready.png",      // Ready to harvest (bud)
+  0: `${BASE}sprout_seed.png`,
+  1: `${BASE}seedling_1.png`,
+  2: `${BASE}seedling_2.png`,
+  3: `${BASE}vegetative_1.png`,
+  4: `${BASE}vegetative_2.png`,
+  5: `${BASE}vegetative_3.png`,
+  6: `${BASE}plant_phase3.png`,
+  7: `${BASE}plant_phase4.png`,
+  8: `${BASE}plant_ready.png`,
 };
 
 // Phase names for display
@@ -292,7 +293,7 @@ const PlotCard = ({ plot, crops, onPlant, onHarvest, playerLevel }) => {
                   >
                     <div className="flex items-center gap-2 mb-2">
                       <img 
-                        src={`/${c.seed_image || 'seed_evo_kush.png'}`}
+                        src={`${BASE}${c.seed_image || 'seed_evo_kush.png'}`}
                         alt={c.name} 
                         className="w-14 h-14 object-contain rounded-lg"
                       />
@@ -1350,7 +1351,7 @@ function App() {
       manifestUrl={manifestUrl}
       uiPreferences={{ theme: "DARK" }}
     >
-      <BrowserRouter>
+      <HashRouter>
         <Toaster
           position="top-center"
           toastOptions={{
@@ -1364,7 +1365,7 @@ function App() {
         <Routes>
           <Route path="/*" element={<AppContent />} />
         </Routes>
-      </BrowserRouter>
+      </HashRouter>
     </TonConnectUIProvider>
   );
 }
