@@ -106,6 +106,26 @@ const BalanceBar = ({ player, onRefresh }) => {
   );
 };
 
+// Growth phase images
+const GROWTH_PHASES = {
+  1: "/plant_phase1.png",  // Seedling
+  2: "/plant_phase2.png",  // Vegetative
+  3: "/plant_phase3.png",  // Flowering
+  4: "/plant_phase4.png",  // Mature
+  5: "/plant_ready.png",   // Ready to harvest
+};
+
+// Get growth phase based on time remaining
+const getGrowthPhase = (timeRemaining, totalTime) => {
+  if (timeRemaining <= 0) return 5; // Ready
+  const progress = 1 - (timeRemaining / totalTime);
+  if (progress < 0.2) return 1;
+  if (progress < 0.4) return 2;
+  if (progress < 0.6) return 3;
+  if (progress < 0.8) return 4;
+  return 4;
+};
+
 // Plot Card Component
 const PlotCard = ({ plot, crops, onPlant, onHarvest, playerLevel }) => {
   const [showCropSelect, setShowCropSelect] = useState(false);
@@ -137,30 +157,65 @@ const PlotCard = ({ plot, crops, onPlant, onHarvest, playerLevel }) => {
 
   if (plot?.crop_type) {
     const isReady = timeRemaining <= 0 || plot?.is_ready;
+    const totalTime = crop?.time || 3600;
+    const phase = getGrowthPhase(timeRemaining, totalTime);
+    const progressPercent = Math.min(100, Math.max(0, ((totalTime - timeRemaining) / totalTime) * 100));
+    
     return (
       <motion.div
         whileHover={{ scale: 1.02 }}
         whileTap={{ scale: 0.98 }}
-        className={`card-plot rounded-xl aspect-square flex flex-col items-center justify-center gap-2 cursor-pointer ${isReady ? 'ready' : 'growing'}`}
+        className={`card-plot rounded-xl aspect-square flex flex-col items-center justify-center p-2 cursor-pointer relative overflow-hidden ${isReady ? 'ready' : 'growing'}`}
         onClick={() => isReady && onHarvest(plot.slot)}
         data-testid={`plot-growing-${plot?.slot}`}
       >
-        <span className="text-4xl animate-float">{crop?.emoji || "🌿"}</span>
-        <span className="text-sm font-medium">{crop?.name}</span>
+        {/* Plant Image */}
+        <motion.img
+          key={phase}
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 0.5 }}
+          src={GROWTH_PHASES[phase]}
+          alt={crop?.name}
+          className={`w-full h-24 object-contain ${isReady ? 'animate-float' : ''}`}
+        />
+        
+        {/* Crop Name */}
+        <span className="text-xs font-medium mt-1 truncate w-full text-center">{crop?.name}</span>
+        
+        {/* Progress Bar or Harvest Button */}
         {isReady ? (
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className="btn-primary px-4 py-1.5 text-sm rounded-lg"
+            className="btn-primary px-3 py-1 text-xs rounded-lg mt-1 neon-glow"
           >
             HARVEST
           </motion.button>
         ) : (
-          <div className="flex items-center gap-1 text-xs text-gray-400">
-            <Timer className="w-3 h-3" />
-            {formatTime(timeRemaining)}
+          <div className="w-full mt-1">
+            <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
+              <span>Phase {phase}/5</span>
+              <span className="flex items-center gap-1">
+                <Timer className="w-3 h-3" />
+                {formatTime(timeRemaining)}
+              </span>
+            </div>
+            <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+              <motion.div 
+                className="h-full bg-gradient-to-r from-[#39FF14] to-green-500 rounded-full"
+                initial={{ width: 0 }}
+                animate={{ width: `${progressPercent}%` }}
+                transition={{ duration: 0.5 }}
+              />
+            </div>
           </div>
         )}
+        
+        {/* Rarity Indicator */}
+        <div className={`absolute top-1 right-1 w-2 h-2 rounded-full rarity-${crop?.rarity}`} 
+          style={{ backgroundColor: 'currentColor' }} 
+        />
       </motion.div>
     );
   }
