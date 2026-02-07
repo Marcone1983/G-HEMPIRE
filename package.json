@@ -1,0 +1,11 @@
+{
+  "name": "cannabis-empire",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "postinstall": "cd frontend && npm install --legacy-peer-deps",
+    "start": "cd frontend && npx vite",
+    "build": "cd frontend && npx vite build",
+    "dev": "cd frontend && npx vite"
+  }
+}
