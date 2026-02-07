@@ -178,6 +178,7 @@ const PlotCard = ({ plot, crops, onPlant, onHarvest, playerLevel }) => {
     const totalTime = crop?.time || 3600;
     const phase = getGrowthPhase(timeRemaining, totalTime);
     const progressPercent = Math.min(100, Math.max(0, ((totalTime - timeRemaining) / totalTime) * 100));
+    const phaseName = PHASE_NAMES[phase] || `Phase ${phase}`;
     
     return (
       <motion.div
@@ -195,7 +196,7 @@ const PlotCard = ({ plot, crops, onPlant, onHarvest, playerLevel }) => {
           transition={{ duration: 0.5 }}
           src={GROWTH_PHASES[phase]}
           alt={crop?.name}
-          className={`w-full h-24 object-contain ${isReady ? 'animate-float' : ''}`}
+          className={`w-full h-20 object-contain ${isReady ? 'animate-float' : ''}`}
         />
         
         {/* Crop Name */}
@@ -212,9 +213,9 @@ const PlotCard = ({ plot, crops, onPlant, onHarvest, playerLevel }) => {
           </motion.button>
         ) : (
           <div className="w-full mt-1">
-            <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
-              <span>Phase {phase}/5</span>
-              <span className="flex items-center gap-1">
+            <div className="flex items-center justify-between text-xs mb-1">
+              <span className="text-[#39FF14] font-medium">{phaseName}</span>
+              <span className="flex items-center gap-1 text-gray-400">
                 <Timer className="w-3 h-3" />
                 {formatTime(timeRemaining)}
               </span>
