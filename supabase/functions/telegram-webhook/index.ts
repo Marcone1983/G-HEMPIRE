@@ -14,7 +14,7 @@ const BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN") || "";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
-const GAME_URL = Deno.env.get("GAME_URL") || "";
+const GAME_URL = Deno.env.get("GAME_URL") || "https://marcone1983.github.io/G-HEMPIRE/";
 const BOT_USERNAME = Deno.env.get("TELEGRAM_BOT_USERNAME") || "GHempireBot";
 
 async function sendMessage(chatId: number, text: string, keyboard?: any) {
