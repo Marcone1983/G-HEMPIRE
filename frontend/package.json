@@ -33,6 +33,7 @@
     "@radix-ui/react-tooltip": "^1.2.4",
     "@ton/core": "^0.63.0",
     "@tonconnect/ui-react": "^2.4.1",
+    "ajv": "^8.17.1",
     "axios": "^1.8.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

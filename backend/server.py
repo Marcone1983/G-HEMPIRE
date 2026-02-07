@@ -13,6 +13,7 @@ from datetime import datetime, timezone, timedelta
 import hashlib
 import secrets
 import httpx
+from telegram_bot import TelegramBot, MultiplayerManager
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -175,6 +176,10 @@ class StakingInfo(BaseModel):
 # App Setup
 app = FastAPI(title="Cannabis Empire API")
 api_router = APIRouter(prefix="/api")
+
+# Initialize Telegram Bot and Multiplayer
+telegram_bot = TelegramBot()
+multiplayer_manager = MultiplayerManager(db)
 
 # Logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -523,14 +528,11 @@ async def purchase_item(data: PurchaseRequest):
     player = await db.players.find_one({"id": data.player_id}, {"_id": 0})
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
-    
-    # Find item
-    item = None
-    for category_items in SHOP_ITEMS.get(data.category, []):
-        if category_items['id'] == data.item_id:
-            item = category_items
-            break
-    
+
+    # Find item - optimized
+    category_items = SHOP_ITEMS.get(data.category, [])
+    item = next((item for item in category_items if item['id'] == data.item_id), None)
+
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
     
@@ -887,10 +889,11 @@ async def withdraw(data: WithdrawRequest):
     await db.withdrawals.insert_one(withdrawal)
     
     # Deduct from player
+    inc_query = {data.currency: -data.amount}
     await db.players.update_one(
         {"id": data.player_id},
         {
-            "$inc": {data.currency: -data.amount},
+            "$inc": inc_query,
             "$set": {"last_active": now.isoformat()}
         }
     )
@@ -921,12 +924,98 @@ async def get_global_stats():
     total_staked = await db.staking.aggregate([
         {"$group": {"_id": None, "total": {"$sum": "$staked_amount"}}}
     ]).to_list(1)
-    
+
     return {
         "total_players": total_players,
         "total_gleaf_circulation": total_gleaf[0]['total'] if total_gleaf else 0,
         "total_staked": total_staked[0]['total'] if total_staked else 0
     }
+
+# Telegram Bot Endpoints
+@api_router.post("/telegram/webhook")
+async def telegram_webhook(data: Dict[str, Any]):
+    try:
+        update = data
+
+        if "message" in update:
+            message = update["message"]
+            chat_id = message["chat"]["id"]
+            telegram_id = message["from"]["id"]
+            username = message["from"].get("username", "User")
+
+            if message.get("text") == "/start":
+                await telegram_bot.handle_start_command(chat_id, telegram_id, username)
+
+        elif "callback_query" in update:
+            callback = update["callback_query"]
+            callback_query_id = callback["id"]
+            callback_data = callback["data"]
+            chat_id = callback["message"]["chat"]["id"]
+            telegram_id = callback["from"]["id"]
+
+            await telegram_bot.handle_callback(callback_query_id, callback_data, chat_id, telegram_id)
+
+        elif "successful_payment" in update:
+            payment = update["successful_payment"]
+            telegram_id = update["message"]["from"]["id"]
+            payload = payment["invoice_payload"]
+            total_amount = payment["total_amount"]
+
+            await telegram_bot.handle_successful_payment(telegram_id, payload, total_amount)
+
+        return {"ok": True}
+    except Exception as e:
+        logger.error(f"Webhook error: {e}")
+        return {"ok": False, "error": str(e)}
+
+# Multiplayer Endpoints
+class MatchRequest(BaseModel):
+    player1_id: str
+    player2_id: str
+    entry_fee: int = 100
+
+@api_router.post("/multiplayer/create-match")
+async def create_ranked_match(data: MatchRequest):
+    match = await multiplayer_manager.create_ranked_match(
+        data.player1_id,
+        data.player2_id,
+        data.entry_fee
+    )
+    return match
+
+@api_router.post("/multiplayer/start/{match_id}")
+async def start_match(match_id: str):
+    await multiplayer_manager.start_match(match_id)
+    return {"success": True, "message": "Match started"}
+
+class FinishMatchRequest(BaseModel):
+    match_id: str
+    winner_id: str
+    winner_coins: int = 500
+    winner_gleaf: int = 50
+
+@api_router.post("/multiplayer/finish")
+async def finish_match(data: FinishMatchRequest):
+    rewards = {"coins": data.winner_coins, "gleaf": data.winner_gleaf}
+    await multiplayer_manager.finish_match(data.match_id, data.winner_id, rewards)
+    return {"success": True, "rewards": rewards}
+
+@api_router.get("/multiplayer/stats/{player_id}")
+async def get_multiplayer_stats(player_id: str):
+    stats = await multiplayer_manager.get_player_stats(player_id)
+    return stats
+
+@api_router.post("/telegram/cloud-save")
+async def cloud_save(telegram_id: int, data: Dict[str, Any]):
+    saved = await telegram_bot.save_user_data(telegram_id, data)
+    return {"success": True, "data": saved}
+
+@api_router.get("/telegram/cloud-load/{telegram_id}")
+async def cloud_load(telegram_id: int):
+    data = await telegram_bot.get_user_data(telegram_id)
+    if not data:
+        raise HTTPException(status_code=404, detail="No saved data")
+    return data
 
 # Include router
 app.include_router(api_router)
