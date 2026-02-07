@@ -1,14 +1,15 @@
-import { useState, useEffect, useCallback } from "react";
-import { HashRouter, Routes, Route, useNavigate, useLocation } from "react-router-dom";
+import React, { useState, useEffect, useCallback } from "react";
+import { HashRouter, Routes, Route } from "react-router-dom";
 import { TonConnectUIProvider, useTonConnectUI, useTonAddress, useTonConnectModal } from "@tonconnect/ui-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Toaster, toast } from "sonner";
 import axios from "axios";
 import {
-  Sprout, ShoppingBag, Wallet, Trophy, User, Settings, Users, 
+  Sprout, ShoppingBag, Wallet, Trophy, User, Settings, Users,
   Zap, Clock, Coins, Gem, Lock, Unlock, ChevronRight, Gift,
   TrendingUp, Star, Award, Copy, ExternalLink, Loader2, Check,
-  Leaf, Timer, Crown, Diamond, CircleDollarSign, ArrowUpRight
+  Leaf, Timer, Crown, Diamond, CircleDollarSign, ArrowUpRight,
+  AlertTriangle, RefreshCw
 } from "lucide-react";
 import "@/App.css";
 
@@ -16,6 +17,58 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
 const BASE = import.meta.env.BASE_URL;
+
+const DEFAULT_PLAYER = {
+  id: "offline",
+  username: "Grower",
+  coins: 1000,
+  gleaf: 0,
+  gems: 50,
+  energy: 100,
+  max_energy: 100,
+  level: 1,
+  xp: 0,
+  vip_tier: "none",
+  daily_streak: 0,
+  referral_count: 0,
+  total_earned: 0,
+  total_staked: 0,
+  active_boosts: [],
+  owned_items: [],
+};
+
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-[#050505] p-6">
+          <div className="text-center max-w-sm">
+            <AlertTriangle className="w-16 h-16 text-yellow-400 mx-auto mb-4" />
+            <h1 className="text-2xl font-bold text-white mb-2">Something went wrong</h1>
+            <p className="text-gray-400 mb-6 text-sm">
+              {this.state.error?.message || "An unexpected error occurred"}
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="flex items-center gap-2 mx-auto px-6 py-3 bg-[#39FF14] text-black font-bold rounded-xl hover:bg-[#32e612] transition-colors"
+            >
+              <RefreshCw className="w-5 h-5" />
+              Reload App
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const manifestUrl = `${window.location.origin}${BASE}tonconnect-manifest.json`;
 
@@ -1244,6 +1297,7 @@ const AppContent = () => {
   const fetchPlayer = useCallback(async () => {
     const address = walletAddress || localStorage.getItem("temp_wallet");
     if (!address) {
+      setPlayer(DEFAULT_PLAYER);
       setLoading(false);
       return;
     }
@@ -1253,11 +1307,10 @@ const AppContent = () => {
       setPlayer(res.data);
     } catch (err) {
       if (err.response?.status === 404) {
-        // Create new player
         try {
           const urlParams = new URLSearchParams(window.location.search);
           const referrer = urlParams.get("ref");
-          
+
           const res = await axios.post(`${API}/player`, {
             wallet_address: address,
             referrer_id: referrer,
@@ -1266,7 +1319,11 @@ const AppContent = () => {
           toast.success("Welcome to Cannabis Empire!");
         } catch (createErr) {
           console.error("Failed to create player:", createErr);
+          setPlayer({ ...DEFAULT_PLAYER, wallet_address: address });
         }
+      } else {
+        console.error("API unavailable:", err.message);
+        setPlayer({ ...DEFAULT_PLAYER, wallet_address: address });
       }
     } finally {
       setLoading(false);
@@ -1344,29 +1401,30 @@ const AppContent = () => {
   );
 };
 
-// App with Providers
 function App() {
   return (
-    <TonConnectUIProvider
-      manifestUrl={manifestUrl}
-      uiPreferences={{ theme: "DARK" }}
-    >
-      <HashRouter>
-        <Toaster
-          position="top-center"
-          toastOptions={{
-            style: {
-              background: "#121212",
-              color: "#fff",
-              border: "1px solid rgba(57, 255, 20, 0.3)",
-            },
-          }}
-        />
-        <Routes>
-          <Route path="/*" element={<AppContent />} />
-        </Routes>
-      </HashRouter>
-    </TonConnectUIProvider>
+    <ErrorBoundary>
+      <TonConnectUIProvider
+        manifestUrl={manifestUrl}
+        uiPreferences={{ theme: "DARK" }}
+      >
+        <HashRouter>
+          <Toaster
+            position="top-center"
+            toastOptions={{
+              style: {
+                background: "#121212",
+                color: "#fff",
+                border: "1px solid rgba(57, 255, 20, 0.3)",
+              },
+            }}
+          />
+          <Routes>
+            <Route path="/*" element={<AppContent />} />
+          </Routes>
+        </HashRouter>
+      </TonConnectUIProvider>
+    </ErrorBoundary>
   );
 }
 
