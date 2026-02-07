@@ -106,24 +106,42 @@ const BalanceBar = ({ player, onRefresh }) => {
   );
 };
 
-// Growth phase images
+// Growth phase images - 8 stages from seedling to harvest
 const GROWTH_PHASES = {
-  1: "/plant_phase1.png",  // Seedling
-  2: "/plant_phase2.png",  // Vegetative
-  3: "/plant_phase3.png",  // Flowering
-  4: "/plant_phase4.png",  // Mature
-  5: "/plant_ready.png",   // Ready to harvest
+  1: "/seedling_1.png",     // Tiny seedling just sprouted
+  2: "/seedling_2.png",     // Small seedling growing
+  3: "/vegetative_1.png",   // Early vegetative stage
+  4: "/vegetative_2.png",   // Mid vegetative stage  
+  5: "/vegetative_3.png",   // Late vegetative (bushy)
+  6: "/plant_phase3.png",   // Pre-flowering with buds forming
+  7: "/plant_phase4.png",   // Flowering/Mature (golden)
+  8: "/plant_ready.png",    // Ready to harvest (bud)
 };
 
-// Get growth phase based on time remaining
+// Phase names for display
+const PHASE_NAMES = {
+  1: "Seedling",
+  2: "Sprouting", 
+  3: "Vegetative",
+  4: "Growing",
+  5: "Bushy",
+  6: "Pre-Flower",
+  7: "Flowering",
+  8: "Ready!"
+};
+
+// Get growth phase based on time remaining (8 phases)
 const getGrowthPhase = (timeRemaining, totalTime) => {
-  if (timeRemaining <= 0) return 5; // Ready
+  if (timeRemaining <= 0) return 8; // Ready
   const progress = 1 - (timeRemaining / totalTime);
-  if (progress < 0.2) return 1;
-  if (progress < 0.4) return 2;
-  if (progress < 0.6) return 3;
-  if (progress < 0.8) return 4;
-  return 4;
+  if (progress < 0.12) return 1;  // 0-12%
+  if (progress < 0.25) return 2;  // 12-25%
+  if (progress < 0.38) return 3;  // 25-38%
+  if (progress < 0.50) return 4;  // 38-50%
+  if (progress < 0.65) return 5;  // 50-65%
+  if (progress < 0.80) return 6;  // 65-80%
+  if (progress < 0.95) return 7;  // 80-95%
+  return 7;
 };
 
 // Plot Card Component
