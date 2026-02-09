@@ -3,7 +3,6 @@ import { HashRouter, Routes, Route } from "react-router-dom";
 import { TonConnectUIProvider, useTonConnectUI, useTonAddress, useTonConnectModal } from "@tonconnect/ui-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Toaster, toast } from "sonner";
-import axios from "axios";
 import {
   Sprout, ShoppingBag, Wallet, Trophy, User, Settings, Users,
   Zap, Clock, Coins, Gem, Lock, Unlock, ChevronRight, Gift,
@@ -12,30 +11,10 @@ import {
   AlertTriangle, RefreshCw
 } from "lucide-react";
 import "@/App.css";
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+import { TelegramWebApp } from "@/utils/telegram";
+import { GameAPI } from "@/utils/api";
 
 const BASE = import.meta.env.BASE_URL;
-
-const DEFAULT_PLAYER = {
-  id: "offline",
-  username: "Grower",
-  coins: 1000,
-  gleaf: 0,
-  gems: 50,
-  energy: 100,
-  max_energy: 100,
-  level: 1,
-  xp: 0,
-  vip_tier: "none",
-  daily_streak: 0,
-  referral_count: 0,
-  total_earned: 0,
-  total_staked: 0,
-  active_boosts: [],
-  owned_items: [],
-};
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -395,8 +374,8 @@ const GardenPage = ({ player, onRefresh }) => {
   const fetchGarden = useCallback(async () => {
     if (!player?.id) return;
     try {
-      const res = await axios.get(`${API}/garden/${player.id}`);
-      setGarden(res.data);
+      const data = await GameAPI.getGarden(player.id);
+      setGarden(data);
     } catch (err) {
       console.error("Failed to fetch garden:", err);
     } finally {
@@ -412,26 +391,29 @@ const GardenPage = ({ player, onRefresh }) => {
 
   const handlePlant = async (slot, cropType) => {
     try {
-      await axios.post(`${API}/garden/plant`, {
+      await GameAPI.plantCrop({
         player_id: player.id,
         slot,
         crop_type: cropType,
       });
+      TelegramWebApp.hapticFeedback.notificationOccurred('success');
       toast.success("Crop planted!");
       fetchGarden();
       onRefresh();
     } catch (err) {
+      TelegramWebApp.hapticFeedback.notificationOccurred('error');
       toast.error(err.response?.data?.detail || "Failed to plant");
     }
   };
 
   const handleHarvest = async (slot) => {
     try {
-      const res = await axios.post(`${API}/garden/harvest`, {
+      const data = await GameAPI.harvestCrop({
         player_id: player.id,
         slot,
       });
-      const { rewards, level_up, new_level } = res.data;
+      const { rewards, level_up, new_level } = data;
+      TelegramWebApp.hapticFeedback.notificationOccurred('success');
       toast.success(
         <div>
           <div className="font-bold">Harvest Complete!</div>
@@ -443,6 +425,7 @@ const GardenPage = ({ player, onRefresh }) => {
       fetchGarden();
       onRefresh();
     } catch (err) {
+      TelegramWebApp.hapticFeedback.notificationOccurred('error');
       toast.error(err.response?.data?.detail || "Failed to harvest");
     }
   };
@@ -496,8 +479,8 @@ const ShopPage = ({ player, onRefresh }) => {
   useEffect(() => {
     const fetchShop = async () => {
       try {
-        const res = await axios.get(`${API}/shop`);
-        setShop(res.data);
+        const data = await GameAPI.getShop();
+        setShop(data);
       } catch (err) {
         console.error("Failed to fetch shop:", err);
       } finally {
@@ -509,14 +492,16 @@ const ShopPage = ({ player, onRefresh }) => {
 
   const handlePurchase = async (itemId, category) => {
     try {
-      await axios.post(`${API}/shop/purchase`, {
+      await GameAPI.purchaseItem({
         player_id: player.id,
         item_id: itemId,
         category,
       });
+      TelegramWebApp.hapticFeedback.notificationOccurred('success');
       toast.success("Purchase successful!");
       onRefresh();
     } catch (err) {
+      TelegramWebApp.hapticFeedback.notificationOccurred('error');
       toast.error(err.response?.data?.detail || "Purchase failed");
     }
   };
@@ -661,8 +646,8 @@ const StakingPage = ({ player, onRefresh }) => {
   const fetchStaking = useCallback(async () => {
     if (!player?.id) return;
     try {
-      const res = await axios.get(`${API}/staking/${player.id}`);
-      setStakingInfo(res.data);
+      const data = await GameAPI.getStaking(player.id);
+      setStakingInfo(data);
     } catch (err) {
       console.error("Failed to fetch staking:", err);
     } finally {
@@ -677,30 +662,35 @@ const StakingPage = ({ player, onRefresh }) => {
   const handleStake = async () => {
     const amount = parseFloat(stakeAmount);
     if (!amount || amount < 100) {
+      TelegramWebApp.hapticFeedback.notificationOccurred('error');
       toast.error("Minimum stake is 100 GLeaf");
       return;
     }
     try {
-      await axios.post(`${API}/staking/stake`, {
+      await GameAPI.stake({
         player_id: player.id,
         amount,
       });
+      TelegramWebApp.hapticFeedback.notificationOccurred('success');
       toast.success(`Staked ${amount} GLeaf!`);
       setStakeAmount("");
       fetchStaking();
       onRefresh();
     } catch (err) {
+      TelegramWebApp.hapticFeedback.notificationOccurred('error');
       toast.error(err.response?.data?.detail || "Staking failed");
     }
   };
 
   const handleClaim = async () => {
     try {
-      const res = await axios.post(`${API}/staking/claim?player_id=${player.id}`);
-      toast.success(`Claimed ${res.data.claimed} GLeaf!`);
+      const data = await GameAPI.claimStakingRewards(player.id);
+      TelegramWebApp.hapticFeedback.notificationOccurred('success');
+      toast.success(`Claimed ${data.claimed} GLeaf!`);
       fetchStaking();
       onRefresh();
     } catch (err) {
+      TelegramWebApp.hapticFeedback.notificationOccurred('error');
       toast.error(err.response?.data?.detail || "Claim failed");
     }
   };
@@ -825,23 +815,27 @@ const WalletPage = ({ player, onRefresh }) => {
   const handleWithdraw = async () => {
     const amount = parseFloat(withdrawAmount);
     if (!amount || amount < 100) {
+      TelegramWebApp.hapticFeedback.notificationOccurred('error');
       toast.error("Minimum withdrawal is 100 GLeaf");
       return;
     }
     if (amount > player?.gleaf) {
+      TelegramWebApp.hapticFeedback.notificationOccurred('error');
       toast.error("Insufficient balance");
       return;
     }
     try {
-      await axios.post(`${API}/wallet/withdraw`, {
+      await GameAPI.withdraw({
         player_id: player.id,
         amount,
         currency: "gleaf",
       });
+      TelegramWebApp.hapticFeedback.notificationOccurred('success');
       toast.success("Withdrawal request submitted!");
       setWithdrawAmount("");
       onRefresh();
     } catch (err) {
+      TelegramWebApp.hapticFeedback.notificationOccurred('error');
       toast.error(err.response?.data?.detail || "Withdrawal failed");
     }
   };
@@ -958,8 +952,8 @@ const ReferralsPage = ({ player }) => {
     const fetchReferrals = async () => {
       if (!player?.id) return;
       try {
-        const res = await axios.get(`${API}/referrals/${player.id}`);
-        setReferralInfo(res.data);
+        const data = await GameAPI.getReferrals(player.id);
+        setReferralInfo(data);
       } catch (err) {
         console.error("Failed to fetch referrals:", err);
       } finally {
@@ -1061,8 +1055,8 @@ const LeaderboardPage = () => {
   useEffect(() => {
     const fetchLeaderboard = async () => {
       try {
-        const res = await axios.get(`${API}/leaderboard`);
-        setLeaderboard(res.data);
+        const data = await GameAPI.getLeaderboard();
+        setLeaderboard(data);
       } catch (err) {
         console.error("Failed to fetch leaderboard:", err);
       } finally {
@@ -1135,8 +1129,9 @@ const ProfilePage = ({ player, onRefresh }) => {
 
   const claimDailyReward = async () => {
     try {
-      const res = await axios.post(`${API}/rewards/daily`, { player_id: player.id });
-      const { streak, rewards } = res.data;
+      const data = await GameAPI.claimDailyReward({ player_id: player.id });
+      const { streak, rewards } = data;
+      TelegramWebApp.hapticFeedback.notificationOccurred('success');
       toast.success(
         <div>
           <div className="font-bold">Day {streak} Streak!</div>
@@ -1147,6 +1142,7 @@ const ProfilePage = ({ player, onRefresh }) => {
       );
       onRefresh();
     } catch (err) {
+      TelegramWebApp.hapticFeedback.notificationOccurred('error');
       toast.error(err.response?.data?.detail || "Already claimed today");
     }
   };
@@ -1293,55 +1289,65 @@ const AppContent = () => {
   const [player, setPlayer] = useState(null);
   const [currentPage, setCurrentPage] = useState("garden");
   const [loading, setLoading] = useState(true);
+  const [telegramUser, setTelegramUser] = useState(null);
+
+  useEffect(() => {
+    const isAvailable = TelegramWebApp.init();
+    if (isAvailable) {
+      const userData = TelegramWebApp.getUserData();
+      setTelegramUser(userData);
+
+      TelegramWebApp.setBackgroundColor('#050505');
+      TelegramWebApp.setHeaderColor('#050505');
+    } else {
+      console.warn('Running outside Telegram - limited functionality');
+    }
+  }, []);
 
   const fetchPlayer = useCallback(async () => {
-    const address = walletAddress || localStorage.getItem("temp_wallet");
-    if (!address) {
-      setPlayer(DEFAULT_PLAYER);
+    if (!walletAddress && !telegramUser) {
       setLoading(false);
       return;
     }
 
     try {
-      const res = await axios.get(`${API}/player/${address}`);
+      const address = walletAddress || `tg_${telegramUser?.id}`;
+      const res = await GameAPI.getPlayer(address);
       setPlayer(res.data);
     } catch (err) {
       if (err.response?.status === 404) {
         try {
-          const urlParams = new URLSearchParams(window.location.search);
+          const urlParams = new URLSearchParams(window.location.hash.split('?')[1] || '');
           const referrer = urlParams.get("ref");
 
-          const res = await axios.post(`${API}/player`, {
+          const address = walletAddress || `tg_${telegramUser?.id}`;
+          const res = await GameAPI.createPlayer({
             wallet_address: address,
+            telegram_id: telegramUser?.id?.toString(),
+            username: telegramUser?.username || telegramUser?.firstName || "Grower",
             referrer_id: referrer,
           });
           setPlayer(res.data);
+          TelegramWebApp.hapticFeedback.notificationOccurred('success');
           toast.success("Welcome to Cannabis Empire!");
         } catch (createErr) {
           console.error("Failed to create player:", createErr);
-          setPlayer({ ...DEFAULT_PLAYER, wallet_address: address });
+          toast.error("Failed to create player account");
         }
       } else {
-        console.error("API unavailable:", err.message);
-        setPlayer({ ...DEFAULT_PLAYER, wallet_address: address });
+        console.error("API error:", err);
+        toast.error("Failed to load player data");
       }
     } finally {
       setLoading(false);
     }
-  }, [walletAddress]);
+  }, [walletAddress, telegramUser]);
 
   useEffect(() => {
-    fetchPlayer();
-  }, [fetchPlayer]);
-
-  // Generate temp wallet for demo if no wallet connected
-  useEffect(() => {
-    if (!walletAddress && !localStorage.getItem("temp_wallet")) {
-      const tempWallet = "UQ" + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-      localStorage.setItem("temp_wallet", tempWallet);
+    if (walletAddress || telegramUser) {
       fetchPlayer();
     }
-  }, [walletAddress, fetchPlayer]);
+  }, [fetchPlayer]);
 
   if (loading) {
     return (

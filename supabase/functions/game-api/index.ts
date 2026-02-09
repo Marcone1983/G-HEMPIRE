@@ -1,17 +1,33 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.49.1";
+import { getTelegramUserFromRequest } from "../_shared/telegram-auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
   "Access-Control-Allow-Headers":
-    "Content-Type, Authorization, X-Client-Info, Apikey",
+    "Content-Type, Authorization, X-Client-Info, Apikey, X-Telegram-Init-Data",
 };
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN") || "";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+
+function validateTelegramAuth(req: Request): boolean {
+  if (!BOT_TOKEN) {
+    console.warn("Bot token not configured - skipping Telegram validation");
+    return true;
+  }
+
+  const telegramUser = getTelegramUserFromRequest(req, BOT_TOKEN);
+  if (!telegramUser) {
+    return false;
+  }
+
+  return true;
+}
 
 const CROPS: Record<string, any> = {
   evo_kush: {
@@ -812,6 +828,13 @@ Deno.serve(async (req: Request) => {
   try {
     const { path, segments } = parseRoute(req.url);
     const method = req.method;
+
+    const publicEndpoints = ["/api"];
+    const isPublicEndpoint = publicEndpoints.some(ep => path === ep);
+
+    if (!isPublicEndpoint && !validateTelegramAuth(req)) {
+      return errorResponse("Unauthorized - Invalid Telegram authentication", 401);
+    }
 
     if (method === "GET" && segments[0] === "api" && segments[1] === "player" && segments[2]) {
       return await handleGetPlayer(segments[2]);
