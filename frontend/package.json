@@ -60,8 +60,9 @@
     "zod": "^3.24.4"
   },
   "scripts": {
-    "start": "craco start",
-    "build": "craco build",
+    "start": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
     "test": "craco test"
   },
   "browserslist": {
