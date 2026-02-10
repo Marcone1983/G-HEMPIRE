@@ -41,7 +41,7 @@ Segui le istruzioni:
 
 @BotFather ti fornirà un token simile a:
 ```
-6234567890:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw
+YOUR_BOT_TOKEN_HERE
 ```
 
 ⚠️ **IMPORTANTE:** Salva questo token in modo sicuro!
@@ -129,7 +129,7 @@ POST https://YOUR_SUPABASE_URL/functions/v1/telegram-webhook/setup
 **Body (JSON):**
 ```json
 {
-  "bot_token": "6234567890:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw",
+  "bot_token": "YOUR_BOT_TOKEN_HERE",
   "bot_username": "GHempireBot"
 }
 ```

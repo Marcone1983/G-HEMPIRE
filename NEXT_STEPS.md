@@ -41,7 +41,7 @@ Username: GHempireBot  (o simile)
 
 **Salva il token ricevuto!** Esempio:
 ```
-6234567890:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw
+YOUR_BOT_TOKEN_HERE
 ```
 
 ### 2. CONFIGURARE SUPABASE (3 minuti)
